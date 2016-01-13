@@ -14,8 +14,6 @@ import org.yamcs.archive.TagDb;
 import org.yamcs.archive.TagReceiver;
 import org.yamcs.protobuf.Yamcs.ArchiveTag;
 import org.yamcs.yarch.YarchDatabase;
-import org.yamcs.yarch.tokyocabinet.YBDB;
-import org.yamcs.yarch.tokyocabinet.YBDBCUR;
 
 public class TcTagDb implements TagDb {
 
@@ -32,9 +30,10 @@ public class TcTagDb implements TagDb {
         this.instance=instance;
         YarchDatabase ydb=YarchDatabase.getInstance(instance);
         
+        db=new YBDB();
         String filename=ydb.getRoot()+"/tags.bdb";
         
-        db = TCBFactory.getInstance().getTcb(filename, false, readonly);
+        db=ydb.getTCBFactory().getTcb(filename, false, readonly);
         log.info("opened "+filename+" with "+db.rnum()+" records");
         if(db.rnum()==0) {
             writeHeader();
@@ -78,6 +77,7 @@ public class TcTagDb implements TagDb {
      * Synchonously gets tags, passing every separate one to the provided
      * {@link TagReceiver}.
      */
+    @Override
     public void getTags(TimeInterval intv, TagReceiver callback) throws IOException {
         log.debug("processing request: {}", intv);
         YBDBCUR cursor=db.openCursor();
@@ -100,9 +100,20 @@ public class TcTagDb implements TagDb {
     }
     
     /**
+     * Returns a specific tag, or null if the requested tag does not exist
+     */
+    @Override
+    public ArchiveTag getTag(long tagTime, int tagId) throws IOException {
+        byte[] k = key(tagTime, tagId);
+        byte[] v = db.get(k);
+        return (v != null) ? ArchiveTag.parseFrom(v) : null;
+    }
+    
+    /**
      * Inserts a new Tag. No id should be specified. If it is, it will
      * silently be overwritten, and the new tag will be returned.
      */
+    @Override
     public ArchiveTag insertTag(ArchiveTag tag) throws IOException {
         ArchiveTag newTag=ArchiveTag.newBuilder(tag).setId(getNewId()).build();
         db.put(key(newTag), newTag.toByteArray());
@@ -116,6 +127,7 @@ public class TcTagDb implements TagDb {
      * Note that both tagId and oldTagStart need to be specified so that
      * a direct lookup in the internal data structure can be made. 
      */
+    @Override
     public ArchiveTag updateTag(long tagTime, int tagId, ArchiveTag tag) throws YamcsException, IOException {
         if(tagId<1) throw new YamcsException("Invalid or unexisting id");
         db.out(key(tagTime, tagId));
@@ -128,6 +140,7 @@ public class TcTagDb implements TagDb {
      * Deletes the specified tag
      * @throws YamcsException if the id was invalid, or if the tag could not be found
      */
+    @Override
     public ArchiveTag deleteTag(long tagTime, int tagId) throws IOException, YamcsException {
         if(tagId<1) throw new YamcsException("Invalid or unexisting id");
         byte[] k=key(tagTime, tagId);

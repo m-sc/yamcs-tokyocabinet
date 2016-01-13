@@ -49,11 +49,12 @@ public class TcTableWriter extends TableWriter {
             case INSERT_APPEND:
                 inserted=insertAppend(db,t);
                 break;
-            /*case UPSERT_APPEND:
-            upsertAppend(db,t);
-            break;*/
+            case UPSERT_APPEND:
+                inserted=upsertAppend(db,t);
+                updated=!inserted;
+                break;
             }
-            TCBFactory.getInstance().dispose(db);
+            ydb.getTCBFactory().dispose(db);
             
             if(inserted && tableDefinition.hasHistogram()) {
                 addHistogram(t);
@@ -122,14 +123,45 @@ public class TcTableWriter extends TableWriter {
         return inserted;
     }
 
-    /* TODO
-    private void upsertAppend(YBDB db, Tuple t) throws IOException {
+    private boolean upsertAppend(YBDB db, Tuple t) throws IOException {
+        byte[] k=tableDefinition.serializeKey(t);
+        byte[] v=db.get(k);
+        boolean inserted=false;
+        if(v!=null) {//append to an existing row
+            Tuple oldt=tableDefinition.deserialize(k, v);
+            TupleDefinition tdef=t.getDefinition();
+            TupleDefinition oldtdef=oldt.getDefinition();
+
+            boolean changed=false;
+            ArrayList<Object> cols=new ArrayList<Object>(oldt.getColumns().size()+t.getColumns().size());
+            cols.addAll(oldt.getColumns());
+            for(ColumnDefinition cd:tdef.getColumnDefinitions()) {
+                if (oldtdef.hasColumn(cd.getName())) {
+                    // currently always says it changed. Not sure if it's worth checking if different
+                    cols.set(oldt.getColumnIndex(cd.getName()), t.getColumn(cd.getName()));
+                    changed=true;
+                } else {
+                    oldtdef.addColumn(cd);
+                    cols.add(t.getColumn(cd.getName()));
+                    changed=true;
+                }
+            }
+            if(changed) {
+                oldt.setColumns(cols);
+                v=tableDefinition.serializeValue(oldt);
+                db.put(k, v);
+            }
+        } else {//new row
+            inserted=true;
+            v=tableDefinition.serializeValue(t);
+            db.put(k, v);
+        }
+        return inserted;
     }
-     */
 
     private YBDB getDatabase(Tuple t) throws IOException {
         String filename = getDbFilename(t);
-        return  TCBFactory.getInstance().getTcb(filename, tableDefinition.isCompressed(), false);
+        return ydb.getTCBFactory().getTcb(filename, tableDefinition.isCompressed(), false);
     }
 
 
