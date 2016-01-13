@@ -54,7 +54,7 @@ public class TcTableWriter extends TableWriter {
                 updated=!inserted;
                 break;
             }
-            ydb.getTCBFactory().dispose(db);
+            TCBFactory.getInstance().dispose(db);
             
             if(inserted && tableDefinition.hasHistogram()) {
                 addHistogram(t);
@@ -161,7 +161,7 @@ public class TcTableWriter extends TableWriter {
 
     private YBDB getDatabase(Tuple t) throws IOException {
         String filename = getDbFilename(t);
-        return ydb.getTCBFactory().getTcb(filename, tableDefinition.isCompressed(), false);
+        return  TCBFactory.getInstance().getTcb(filename, tableDefinition.isCompressed(), false);
     }
 
 

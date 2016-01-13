@@ -32,8 +32,8 @@ public class TcTagDb implements TagDb {
         
         db=new YBDB();
         String filename=ydb.getRoot()+"/tags.bdb";
-        
-        db=ydb.getTCBFactory().getTcb(filename, false, readonly);
+
+        db = TCBFactory.getInstance().getTcb(filename, false, readonly);
         log.info("opened "+filename+" with "+db.rnum()+" records");
         if(db.rnum()==0) {
             writeHeader();
